@@ -1,0 +1,7 @@
+INSERT INTO Discharge (dischargeID, discharge_doctorID, dischargeDate)
+INSERT INTO Payment (type, payment_date, amount, paymentID,dischargeID)
+INSERT INTO Medical_Record (recordID, treatment, event_record,patientID, dischargeID)
+
+INSERT INTO Insurance (insuranceID, insurance_name, coverage_startdate, coverage_enddate, paymentID)
+INSERT INTO Patient (name, address, contact_info, patientID, birthdate, paymentID, insuranceID)
+INSERT INTO Admission (admission_date, admissionID, ward, doctorID, patientID, recordID)
