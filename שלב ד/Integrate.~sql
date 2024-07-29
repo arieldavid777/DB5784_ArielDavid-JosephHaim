@@ -1,0 +1,224 @@
+-- rename tables for integration:
+rename Discharge to Discharge1;
+rename Payment to Payment1;
+rename Medical_Record to Medical_Record1;
+rename Insurance to Insurance1;
+rename Patient to Patient1;
+rename Admission to Admission1;
+rename Admission_Discharge to Admission_Discharge1;
+
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+SELECT COUNT(*) FROM PATIENT;-- (465)
+SELECT COUNT(*) FROM PATIENT1; -- (499)
+
+SELECT COUNT(*) FROM PATIENT P WHERE P.PATIENT_ID NOT IN (SELECT PATIENTID FROM PATIENT1);-- ALL THE PATIENTS (465) ARE DIFFERENT
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+--merge patient and patient1:
+
+-- creating a backup since will need it later
+CREATE TABLE Backup_Patient1 AS SELECT * FROM Patient1;
+--preprocessing patient1:
+
+ALTER TABLE Patient1
+ADD sexe VARCHAR2(30) NULL;
+
+
+ALTER TABLE Patient1 DROP CONSTRAINT INSURANCEID
+ALTER TABLE Patient1 DROP COLUMN INSURANCEID;
+
+ALTER TABLE Payment1 DROP CONSTRAINT dischargeID;
+ALTER TABLE Payment1 DROP COLUMN dischargeID;
+
+ALTER TABLE Payment1 DROP CONSTRAINT CHK_AMOUNT;
+
+ALTER TABLE Patient1 MODIFY address VARCHAR2(255) NULL;
+ALTER TABLE Patient1 MODIFY contact_Info VARCHAR2(255) NULL;
+ALTER TABLE Patient1 MODIFY birthDate DATE NULL;
+
+--inserting:
+
+DECLARE
+    v_paymentID Payment1.paymentID%TYPE;
+    v_maxPaymentID Payment1.paymentID%TYPE;
+    v_defaultDate DATE := TO_DATE('01-JAN-0001', 'DD-MON-YYYY');
+BEGIN
+    -- Fetch the maximum paymentID from the Payment1 table
+    SELECT NVL(MAX(paymentID), 0) INTO v_maxPaymentID
+    FROM Payment1;
+    
+    -- Loop through each patient
+    FOR r IN (SELECT PATIENT_ID, patient_name, sexe FROM Patient) LOOP
+        -- Increment the max paymentID to get the next paymentID
+        v_paymentID := v_maxPaymentID + 1;
+        
+        -- Insert a new payment row with the incremented paymentID
+        INSERT INTO Payment1 (pay_Type, amount, paymentID)
+        VALUES ('UNKNOWN', 0, v_paymentID);
+        
+        -- Insert a new patient row with the new paymentID
+        INSERT INTO Patient1 (patientID, name, address, contact_info, birthdate, sexe, paymentID)
+        VALUES (r.PATIENT_ID, r.patient_name, 'UNKNOWN', 'UNKNOWN', v_defaultDate, r.sexe, v_paymentID);
+
+        -- Update the maximum paymentID variable for the next iteration
+        v_maxPaymentID := v_paymentID;
+    END LOOP;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Capture and display the error message
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+        -- Optionally, you can log the error to a table or take other actions
+        -- INSERT INTO Error_Log (error_message, error_timestamp) VALUES (SQLERRM, SYSDATE);
+END;
+/
+
+
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+--preprocessing Discharge1:
+ALTER TABLE Discharge1 
+DROP COLUMN discharge_doctorID;
+
+ALTER TABLE Discharge1
+ADD followup_date DATE NULL;
+
+UPDATE Discharge1
+SET followup_date = dischargeDate + INTERVAL '7' DAY;
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+--preprocessing Admission_Discharge1:
+
+-- Step 1: Modify Table Structures
+
+-- Drop foreign key from Admission1
+ALTER TABLE Admission1 DROP CONSTRAINT recordID;
+ALTER TABLE Admission1 DROP COLUMN recordID;
+
+-- Add new column to Admission_Discharge1
+ALTER TABLE Admission_Discharge1 ADD (recordID INT);
+
+-- Step 2: Populate New Columns
+
+-- Populate the recordID in Admission_Discharge1 from the backup data
+UPDATE Admission_Discharge1 ad
+SET recordID = (
+    SELECT mr.recordID 
+    FROM Medical_Record1 mr 
+    WHERE mr.dischargeID = ad.dischargeID
+);
+
+-- Step 3: Modify edical_Record1 Table Structure
+-- Drop foreign key from Medical_Record1
+ALTER TABLE Medical_Record1 DROP CONSTRAINT dischargeID;
+ALTER TABLE Medical_Record1 DROP COLUMN dischargeID;
+
+
+-- Step 4: Add New Foreign Key Constraints
+
+-- Add foreign key constraints to Admission_Discharge1
+ALTER TABLE Admission_Discharge1 ADD CONSTRAINT fk_recordID FOREIGN KEY (recordID) REFERENCES Medical_Record1(recordID);
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+--Patient and Doctor connection
+ 
+-- Step 1: Drop doctorID from Admission table
+ALTER TABLE Admission1 DROP COLUMN doctorID;
+
+-- Step 2: Create Attending_doctor table
+CREATE TABLE Attending_doctor (
+    doctor_id INT NOT NULL,
+    admissionID INT NOT NULL,
+    PRIMARY KEY (doctor_id, admissionID),
+    FOREIGN KEY (doctor_id) REFERENCES Doctor(doctor_id),
+    FOREIGN KEY (admissionID) REFERENCES Admission1(admissionID)
+);
+
+
+
+-- Step 3: Assign random doctors to each admission
+DECLARE
+    v_doctor_id Doctor.doctor_id%TYPE;
+BEGIN
+    FOR r IN (SELECT admissionID FROM Admission1) LOOP
+        -- Select a random doctor_id
+        SELECT doctor_id
+        INTO v_doctor_id
+        FROM (
+            SELECT doctor_id
+            FROM Doctor
+            ORDER BY DBMS_RANDOM.VALUE
+        ) WHERE ROWNUM = 1;
+
+        -- Insert into Attending_doctor table
+        INSERT INTO Attending_doctor (doctor_id, admissionID)
+        VALUES (v_doctor_id, r.admissionID);
+    END LOOP;
+END;
+/
+
+-- how many pair of attending doctors we have and how many doctors are actually attending.
+SELECT COUNT(*) FROM Attending_doctor;
+SELECT COUNT(DISTINCT doctor_ID) AS distinct_doctor_count FROM Attending_doctor;
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+-- Step 1: Create the Insured_Patients1 table
+CREATE TABLE Insured_Patients (
+    paymentID INT NOT NULL,
+    patientID INT NOT NULL,
+    insuranceID INT NOT NULL,
+    PRIMARY KEY (paymentID, patientID, insuranceID),
+    FOREIGN KEY (paymentID) REFERENCES Payment1(paymentID),
+    FOREIGN KEY (patientID) REFERENCES Patient1(patientID),
+    FOREIGN KEY (insuranceID) REFERENCES Insurance1(insuranceID)
+);
+
+-- Step 2: Populate the Insured_Patients1 table based on existing data
+INSERT INTO Insured_Patients (paymentID, patientID, insuranceID)
+SELECT 
+    paymentID, 
+    patientID, 
+    insuranceID
+FROM 
+    Backup_Patient1
+WHERE
+    insuranceID IS NOT NULL;
+
+-- Verification step (optional)
+SELECT * FROM Insured_Patients1;
+
+-- Step 3: Drop the backup table and the constraints.
+DROP TABLE Backup_Patient1 CASCADE CONSTRAINTS;
+
+ALTER TABLE Insurance1 DROP CONSTRAINT PaymentID;
+ALTER TABLE Insurance1 DROP COLUMN PaymentID;
+------------------------------------------------------------------------------------------------------------------------------------------------
+-- Correct the foreign keys after the Patient1 and Patient merge
+
+-- Dropping the existing constraint
+ALTER TABLE Operation DROP CONSTRAINT SYS_C009040;
+
+-- Adding a new foreign key constraint
+ALTER TABLE Operation
+ADD CONSTRAINT patient_id
+FOREIGN KEY (PATIENTID)
+REFERENCES Patient1 (PATIENTID);
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+-- rename back:
+rename Discharge1 to Discharge;
+rename Payment1 to Payment;
+rename Medical_Record1 to Medical_Record;
+rename Insurance1 to Insurance;
+rename Patient1 to Patient;
+rename Admission1 to Admission;
+rename Admission_Discharge1 to Admission_Discharge;

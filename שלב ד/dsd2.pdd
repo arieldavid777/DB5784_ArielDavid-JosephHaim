@@ -483,8 +483,8 @@ ObjectID=1
 
 [Item6]
 Caption=EQUIPEMENT
-Left=959
-Top=770
+Left=958
+Top=764
 Width=280
 Height=333
 ShowIcons=True
@@ -674,15 +674,15 @@ ObjectID=1
 
 [Item8]
 Caption=PATIENT
-Left=224
-Top=154
-Width=228
-Height=184
+Left=80
+Top=143
+Width=382
+Height=283
 ShowIcons=True
 ShowHeadings=True
 ShowComment=True
 Comment=
-Grid=30,28,115,119,66,59,193
+Grid=30,28,115,119,66,59,347
 Username=c##ariel
 Database=XE
 ObjectType=TABLE

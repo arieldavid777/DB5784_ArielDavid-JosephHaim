@@ -3,7 +3,8 @@ ALTER TABLE Patient
 MODIFY contact_info VARCHAR2(255) NOT NULL;
 --problem it already has a not null value(all the tables have it).
 
---This constraint ensures that the "amount" column in the payment table must always contain a value greater than 0.
+--This constraint ensures that the "amount" column in the payment table must always
+-- contain a value greater than 0.
 ALTER TABLE Payment
 ADD CONSTRAINT chk_amount CHECK (amount > 0);
 /*
