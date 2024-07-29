@@ -5,7 +5,7 @@ MODIFY contact_info VARCHAR2(255) NOT NULL;
 
 --This constraint ensures that the "amount" column in the payment table must always
 -- contain a value greater than 0.
-ALTER TABLE Payment1
+ALTER TABLE Payment
 ADD CONSTRAINT chk_amount1 CHECK (amount >= 0);
 /*
 This constraint sets a DEFAULT constraint on this column to use SYSDATE(the current date and time),

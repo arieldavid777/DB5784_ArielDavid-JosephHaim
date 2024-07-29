@@ -193,7 +193,7 @@ WHERE
     insuranceID IS NOT NULL;
 
 -- Verification step (optional)
-SELECT * FROM Insured_Patients1;
+SELECT * FROM Insured_Patients;
 
 -- Step 3: Drop the backup table and the constraints.
 DROP TABLE Backup_Patient1 CASCADE CONSTRAINTS;
@@ -203,16 +203,18 @@ ALTER TABLE Insurance1 DROP COLUMN PaymentID;
 ------------------------------------------------------------------------------------------------------------------------------------------------
 -- Correct the foreign keys after the Patient1 and Patient merge
 
--- Dropping the existing constraint
+-- Step 1: Verify that all PatientID values in Operation are valid
+SELECT DISTINCT PatientID
+FROM Operation
+WHERE PatientID NOT IN (SELECT PatientID FROM Patient1);
+
+-- Step 2: (If necessary) Update or clean the data in Operation
+
+-- Step 3: Add the new foreign key constraint
+ALTER TABLE Operation ADD CONSTRAINT fk_patientID FOREIGN KEY (PatientID) REFERENCES Patient1 (PatientID);
+
+-- Step 4: Drop the old constraint if it is no longer needed
 ALTER TABLE Operation DROP CONSTRAINT SYS_C009040;
-
--- Adding a new foreign key constraint
-ALTER TABLE Operation
-ADD CONSTRAINT patient_id
-FOREIGN KEY (PATIENTID)
-REFERENCES Patient1 (PATIENTID);
-
-
 ------------------------------------------------------------------------------------------------------------------------------------------------
 -- rename back:
 rename Discharge1 to Discharge;

@@ -193,32 +193,55 @@ WHERE
     insuranceID IS NOT NULL;
 
 -- Verification step (optional)
-SELECT * FROM Insured_Patients1;
+SELECT * FROM Insured_Patients;
 
 -- Step 3: Drop the backup table and the constraints.
 DROP TABLE Backup_Patient1 CASCADE CONSTRAINTS;
 
 ALTER TABLE Insurance1 DROP CONSTRAINT PaymentID;
 ALTER TABLE Insurance1 DROP COLUMN PaymentID;
-------------------------------------------------------------------------------------------------------------------------------------------------
--- Correct the foreign keys after the Patient1 and Patient merge
-
--- Dropping the existing constraint
-ALTER TABLE Operation DROP CONSTRAINT SYS_C009040;
-
--- Adding a new foreign key constraint
-ALTER TABLE Operation
-ADD CONSTRAINT patient_id
-FOREIGN KEY (PATIENTID)
-REFERENCES Patient1 (PATIENTID);
-
 
 ------------------------------------------------------------------------------------------------------------------------------------------------
+-- swiching constraints of Patient to Patient1
+
+-- Step 1: Add the new foreign key constraint
+ALTER TABLE Operation ADD CONSTRAINT fk_patientID FOREIGN KEY (Patient_ID) REFERENCES Patient1 (PatientID);
+
+-- Step 2: Drop the old constraint if it is no longer needed
+ALTER TABLE Operation DROP CONSTRAINT SYS_C009146;
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+-- deleting their patient table and renaming our integrated one.
+DROP TABLE Patient CASCADE CONSTRAINTS;
+rename Patient1 to Patient;
+
+
 -- rename back:
 rename Discharge1 to Discharge;
 rename Payment1 to Payment;
 rename Medical_Record1 to Medical_Record;
 rename Insurance1 to Insurance;
-rename Patient1 to Patient;
 rename Admission1 to Admission;
 rename Admission_Discharge1 to Admission_Discharge;
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+--FINISH
+------------------------------------------------------------------------------------------------------------------------------------------------
+--Selects to see all the tables:
+select * from Patient;
+select * from Admission;
+select * from Discharge;
+select * from Medical_Record;
+select * from Payment;
+select * from Insurance;
+select * from Admission_Discharge;
+select * from Insured_Patients;
+select * from Attending_Doctor;
+select * from Operation;
+select * from Operating_Room;
+select * from Equipement;
+select * from Doctor;
+select * from Operate_By;
+select * from Nurse;
+select * from Assist_By;
+
